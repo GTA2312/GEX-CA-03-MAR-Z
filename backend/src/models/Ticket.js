@@ -2,8 +2,21 @@ const mongoose = require('mongoose');
 
 const ticketSchema = new mongoose.Schema(
   {
-    titulo: { type: String, required: true, trim: true },
-    descripcion: { type: String, required: true },
+    titulo: {
+      type: String,
+      required: [true, 'El título es obligatorio.'],
+      trim: true
+    },
+    descripcion: {
+      type: String,
+      required: [true, 'La descripción es obligatoria.']
+    },
+    categoria: {
+      type: String,
+      required: [true, 'La categoría es obligatoria.'],
+      enum: ['Hardware', 'Software', 'Redes', 'Acceso/Seguridad', 'Otros'],
+      trim: true
+    },
     prioridad: {
       type: String,
       enum: ['Baja', 'Media', 'Alta', 'Crítica'],
@@ -11,8 +24,8 @@ const ticketSchema = new mongoose.Schema(
     },
     estado: {
       type: String,
-      enum: ['Pendiente', 'En Proceso', 'Resuelto', 'Cerrado'],
-      default: 'Pendiente'
+      enum: ['Nuevo', 'En Proceso', 'Resuelto', 'Cerrado'],
+      default: 'Nuevo'
     },
     solicitante: {
       type: mongoose.Schema.Types.ObjectId,
@@ -23,9 +36,25 @@ const ticketSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null
-    }
+    },
+    historialPrioridad: [
+      {
+        prioridadAnterior: String,
+        prioridadNueva: String,
+        modificadoPor: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User'
+        },
+        fecha: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ]
   },
-  { timestamps: true }
+  {
+    timestamps: true
+  }
 );
 
 module.exports = mongoose.model('Ticket', ticketSchema);
