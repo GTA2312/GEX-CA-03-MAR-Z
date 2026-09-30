@@ -97,3 +97,23 @@ export const agregarComentarioService = async (ticketId, texto, token) => {
 
   return data;
 };
+
+// HU07: Cambiar el estado de una solicitud (Agente y Coordinador)
+export const actualizarEstadoService = async (ticketId, estado, token) => {
+  const response = await fetch(`${API_URL}/${ticketId}/estado`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ estado })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.mensaje || 'Error al actualizar el estado del ticket.');
+  }
+
+  return data;
+};

@@ -36,7 +36,7 @@ const crearTicket = async (req, res) => {
   }
 };
 
-// Obtener solicitudes (Soporte para HU03 / HU04 / HU05 / HU06)
+// Obtener solicitudes (Soporte para HU03 / HU04 / HU05 / HU06 / HU07)
 const obtenerTickets = async (req, res) => {
   try {
     let filtro = {};
@@ -53,6 +53,7 @@ const obtenerTickets = async (req, res) => {
       .populate('historialAsignacion.asignadoPor', 'nombre email') // Trazabilidad HU05
       .populate('historialAsignacion.agenteNuevo', 'nombre email')
       .populate('comentarios.autor', 'nombre email rol') // HU06: Autor del comentario
+      .populate('historialEstado.modificadoPor', 'nombre email') // HU07: Trazabilidad del cambio de estado
       .sort({ createdAt: -1 });
 
     res.json(tickets);
@@ -149,6 +150,12 @@ const asignarTicket = async (req, res) => {
 
     // Cambiar estado automáticamente a "En Proceso" si la solicitud estaba en estado "Nuevo"
     if (ticket.estado === 'Nuevo') {
+      ticket.historialEstado.push({
+        estadoAnterior: 'Nuevo',
+        estadoNuevo: 'En Proceso',
+        modificadoPor: req.user.id,
+        fecha: new Date()
+      });
       ticket.estado = 'En Proceso';
     }
 
@@ -214,10 +221,67 @@ const agregarComentario = async (req, res) => {
   }
 };
 
+// HU07: Actualizar el estado de una solicitud con validación de transiciones e historial
+const actualizarEstado = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado: nuevoEstado } = req.body;
+
+    if (!nuevoEstado) {
+      return res.status(400).json({ mensaje: 'El nuevo estado es obligatorio.' });
+    }
+
+    const ticket = await Ticket.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ mensaje: 'Solicitud no encontrada.' });
+    }
+
+    const estadoActual = ticket.estado;
+
+    // Matriz de transiciones permitidas según el flujo (HU07)
+    const transicionesPermitidas = {
+      'Nuevo': ['En Proceso'],
+      'En Proceso': ['Resuelto'],
+      'Resuelto': ['Cerrado', 'En Proceso'],
+      'Cerrado': []
+    };
+
+    if (!transicionesPermitidas[estadoActual] || !transicionesPermitidas[estadoActual].includes(nuevoEstado)) {
+      return res.status(400).json({
+        mensaje: `Transición inválida: No se permite cambiar de "${estadoActual}" a "${nuevoEstado}".`
+      });
+    }
+
+    // Registrar trazabilidad inmutable del cambio de estado
+    const registroEstado = {
+      estadoAnterior: estadoActual,
+      estadoNuevo: nuevoEstado,
+      modificadoPor: req.user.id,
+      fecha: new Date()
+    };
+
+    ticket.historialEstado.push(registroEstado);
+    ticket.estado = nuevoEstado;
+
+    await ticket.save();
+
+    res.json({
+      mensaje: 'Estado actualizado con éxito.',
+      ticket
+    });
+  } catch (error) {
+    res.status(500).json({
+      mensaje: 'Error al actualizar el estado de la solicitud',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   crearTicket,
   obtenerTickets,
   actualizarPrioridad,
   asignarTicket,
-  agregarComentario
+  agregarComentario,
+  actualizarEstado
 };

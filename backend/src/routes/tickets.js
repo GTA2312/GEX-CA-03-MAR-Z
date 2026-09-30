@@ -5,7 +5,8 @@ const {
   obtenerTickets,
   actualizarPrioridad,
   asignarTicket,
-  agregarComentario
+  agregarComentario,
+  actualizarEstado
 } = require('../controllers/ticketController');
 const { verifyToken } = require('../middlewares/authJwt');
 const { checkRole } = require('../middlewares/authRole');
@@ -19,5 +20,8 @@ router.patch('/:id/asignar', verifyToken, checkRole(['Coordinador']), asignarTic
 
 // HU06: Agregar comentarios de trabajo (Agente y Coordinador)
 router.post('/:id/comentarios', verifyToken, checkRole(['Agente', 'Coordinador']), agregarComentario);
+
+// HU07: Cambiar estado de la solicitud (Agente y Coordinador)
+router.patch('/:id/estado', verifyToken, checkRole(['Agente', 'Coordinador']), actualizarEstado);
 
 module.exports = router;

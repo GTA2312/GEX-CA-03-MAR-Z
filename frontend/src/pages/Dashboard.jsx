@@ -69,8 +69,8 @@ export default function Dashboard() {
     cargarTickets();
   };
 
-  // HU06: Recargar lista y actualizar ticket seleccionado cuando se agrega un comentario
-  const handleCommentAdded = async () => {
+  // HU06 / HU07: Recargar lista y refrescar el ticket seleccionado tras comentarios o cambios de estado
+  const handleTicketUpdated = async () => {
     const updatedTickets = await cargarTickets();
     if (updatedTickets && selectedTicket) {
       const refreshed = updatedTickets.find((t) => t._id === selectedTicket._id);
@@ -307,16 +307,23 @@ export default function Dashboard() {
       <TicketDetailModal
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
-        onCommentAdded={handleCommentAdded}
+        onCommentAdded={handleTicketUpdated}
+        onStatusChanged={handleTicketUpdated}
       />
     </div>
   );
 }
 
-// Estilos de Badges
+// Estilos de Badges (Soporte HU07)
 const statusBadgeStyle = (estado) => ({
   backgroundColor:
-    estado === 'Nuevo' ? '#2563eb' : estado === 'En Proceso' ? '#d97706' : '#16a34a',
+    estado === 'Nuevo'
+      ? '#2563eb'
+      : estado === 'En Proceso'
+      ? '#d97706'
+      : estado === 'Resuelto'
+      ? '#16a34a'
+      : '#64748b',
   color: '#ffffff',
   padding: '0.2rem 0.6rem',
   borderRadius: '4px',
@@ -351,7 +358,7 @@ const styles = {
     color: '#ffffff',
     padding: '1.25rem 2rem',
     display: 'flex',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center'
   },
   title: {
@@ -443,7 +450,7 @@ const styles = {
   },
   sectionHeader: {
     display: 'flex',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '1rem'
   },

@@ -1,14 +1,28 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { agregarComentarioService } from '../../services/ticketService';
+import { agregarComentarioService, actualizarEstadoService } from '../../services/ticketService';
 
-export default function TicketDetailModal({ ticket, onClose, onCommentAdded }) {
+export default function TicketDetailModal({ ticket, onClose, onCommentAdded, onStatusChanged }) {
   const { user, token } = useAuth();
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [errorComentario, setErrorComentario] = useState('');
+  const [errorEstado, setErrorEstado] = useState('');
 
   if (!ticket) return null;
+
+  // Matriz de transiciones permitidas segun el flujo (HU07)
+  const transicionesPermitidas = {
+    'Nuevo': ['En Proceso'],
+    'En Proceso': ['Resuelto'],
+    'Resuelto': ['Cerrado', 'En Proceso'],
+    'Cerrado': []
+  };
+
+  const estadosSiguientes = transicionesPermitidas[ticket.estado] || [];
+  const puedeCambiarEstado = (user?.rol === 'Agente' || user?.rol === 'Coordinador') && estadosSiguientes.length > 0;
+  const puedeComentar = user?.rol === 'Agente' || user?.rol === 'Coordinador';
 
   const handleGuardarComentario = async (e) => {
     e.preventDefault();
@@ -30,7 +44,19 @@ export default function TicketDetailModal({ ticket, onClose, onCommentAdded }) {
     }
   };
 
-  const puedeComentar = user?.rol === 'Agente' || user?.rol === 'Coordinador';
+  const handleCambiarEstado = async (nuevoEstado) => {
+    if (!nuevoEstado) return;
+    try {
+      setCambiandoEstado(true);
+      setErrorEstado('');
+      await actualizarEstadoService(ticket._id, nuevoEstado, token);
+      if (onStatusChanged) onStatusChanged();
+    } catch (err) {
+      setErrorEstado(err.message);
+    } finally {
+      setCambiandoEstado(false);
+    }
+  };
 
   return (
     <div style={overlayStyle}>
@@ -53,9 +79,31 @@ export default function TicketDetailModal({ ticket, onClose, onCommentAdded }) {
         <div style={detailGroup}>
           <strong>Prioridad:</strong> <span style={priorityBadgeStyle(ticket.prioridad)}>{ticket.prioridad}</span>
         </div>
+
+        {/* HU07: Cambio de Estado con Transiciones Permitidas */}
         <div style={detailGroup}>
-          <strong>Estado:</strong> <span style={statusBadgeStyle(ticket.estado)}>{ticket.estado}</span>
+          <strong>Estado:</strong>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <span style={statusBadgeStyle(ticket.estado)}>{ticket.estado}</span>
+            {puedeCambiarEstado && (
+              <select
+                disabled={cambiandoEstado}
+                onChange={(e) => handleCambiarEstado(e.target.value)}
+                defaultValue=""
+                style={selectStatusStyle}
+              >
+                <option value="" disabled>Cambiar estado...</option>
+                {estadosSiguientes.map((st) => (
+                  <option key={st} value={st}>
+                    Pasar a: {st}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
+        {errorEstado && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'right', margin: '2px 0 8px' }}>{errorEstado}</p>}
+
         <div style={detailGroup}>
           <strong>Solicitante:</strong> <span>{ticket.solicitante?.nombre} ({ticket.solicitante?.email})</span>
         </div>
@@ -119,9 +167,24 @@ export default function TicketDetailModal({ ticket, onClose, onCommentAdded }) {
           )}
         </div>
 
+        {/* HU07: Trazabilidad del Historial de Estados */}
+        {ticket.historialEstado && ticket.historialEstado.length > 0 && (
+          <div style={{ marginTop: '20px' }}>
+            <strong>Historial de Cambios de Estado:</strong>
+            <ul style={historyListStyle}>
+              {ticket.historialEstado.map((hist, index) => (
+                <li key={index} style={{ marginBottom: '4px' }}>
+                  Cambió de <strong>{hist.estadoAnterior}</strong> a <strong>{hist.estadoNuevo}</strong> por{' '}
+                  {hist.modificadoPor?.nombre || 'Usuario'} ({new Date(hist.fecha).toLocaleString()})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Sección de Trazabilidad Prioridad HU04 */}
         {ticket.historialPrioridad && ticket.historialPrioridad.length > 0 && (
-          <div style={{ marginTop: '20px' }}>
+          <div style={{ marginTop: '15px' }}>
             <strong>Historial de Cambios de Prioridad:</strong>
             <ul style={historyListStyle}>
               {ticket.historialPrioridad.map((cambio, index) => (
@@ -175,7 +238,11 @@ const closeBtnStyle = {
 };
 
 const detailGroup = {
-  marginBottom: '8px', display: 'flex', justifyContent: 'space-between'
+  marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+};
+
+const selectStatusStyle = {
+  padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem', cursor: 'pointer'
 };
 
 const descriptionStyle = {
@@ -216,11 +283,33 @@ const cancelBtnStyle = {
 };
 
 const statusBadgeStyle = (estado) => ({
-  backgroundColor: estado === 'Nuevo' ? '#3b82f6' : estado === 'En Proceso' ? '#f59e0b' : '#10b981',
-  color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'
+  backgroundColor:
+    estado === 'Nuevo'
+      ? '#3b82f6'
+      : estado === 'En Proceso'
+      ? '#f59e0b'
+      : estado === 'Resuelto'
+      ? '#10b981'
+      : '#64748b',
+  color: '#fff',
+  padding: '2px 8px',
+  borderRadius: '4px',
+  fontSize: '0.8rem',
+  fontWeight: 'bold'
 });
 
 const priorityBadgeStyle = (prioridad) => ({
-  backgroundColor: prioridad === 'Crítica' ? '#dc2626' : prioridad === 'Alta' ? '#ea580c' : prioridad === 'Media' ? '#d97706' : '#16a34a',
-  color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'
+  backgroundColor:
+    prioridad === 'Crítica'
+      ? '#dc2626'
+      : prioridad === 'Alta'
+      ? '#ea580c'
+      : prioridad === 'Media'
+      ? '#d97706'
+      : '#16a34a',
+  color: '#fff',
+  padding: '2px 8px',
+  borderRadius: '4px',
+  fontSize: '0.8rem',
+  fontWeight: 'bold'
 });

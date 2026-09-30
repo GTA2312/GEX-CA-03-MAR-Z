@@ -73,6 +73,15 @@ const ticketSchema = new mongoose.Schema(
           default: Date.now
         }
       }
+    ],
+    // Trazabilidad de cambio de estado (HU07)
+    historialEstado: [
+      {
+        estadoAnterior: { type: String, required: true },
+        estadoNuevo: { type: String, required: true },
+        modificadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        fecha: { type: Date, default: Date.now }
+      }
     ]
   },
   {
