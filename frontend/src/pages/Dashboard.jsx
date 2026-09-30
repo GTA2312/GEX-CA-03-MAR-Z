@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [orden, setOrden] = useState('fecha');
+  const [busquedaTexto, setBusquedaTexto] = useState(''); // HU08: Estado para búsqueda por texto
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -69,7 +70,7 @@ export default function Dashboard() {
     cargarTickets();
   };
 
-  // HU06 / HU07: Recargar lista y refrescar el ticket seleccionado tras comentarios o cambios de estado
+  // HU06 / HU07 / HU08: Recargar lista y refrescar el ticket seleccionado tras comentarios, cambios de estado o resoluciones
   const handleTicketUpdated = async () => {
     const updatedTickets = await cargarTickets();
     if (updatedTickets && selectedTicket) {
@@ -101,8 +102,16 @@ export default function Dashboard() {
     }
   };
 
-  // HU04: Lógica de ordenamiento dinámico
-  const ticketsOrdenados = [...tickets].sort((a, b) => {
+  // HU08: Filtrar tickets dinámicamente por título o descripción
+  const ticketsFiltrados = tickets.filter((t) => {
+    const termino = busquedaTexto.toLowerCase();
+    const coincideTitulo = t.titulo ? t.titulo.toLowerCase().includes(termino) : false;
+    const coincideDescripcion = t.descripcion ? t.descripcion.toLowerCase().includes(termino) : false;
+    return coincideTitulo || coincideDescripcion;
+  });
+
+  // HU04: Lógica de ordenamiento dinámico sobre la lista filtrada
+  const ticketsOrdenados = [...ticketsFiltrados].sort((a, b) => {
     if (orden === 'prioridad') {
       const pesoPrioridad = { Crítica: 4, Alta: 3, Media: 2, Baja: 1 };
       return pesoPrioridad[b.prioridad] - pesoPrioridad[a.prioridad];
@@ -180,7 +189,16 @@ export default function Dashboard() {
           <div style={styles.sectionHeader}>
             <h2>Gestión de Solicitudes</h2>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* HU08: Campo de Búsqueda por Texto */}
+              <input
+                type="text"
+                placeholder="🔍 Buscar por título o descripción..."
+                value={busquedaTexto}
+                onChange={(e) => setBusquedaTexto(e.target.value)}
+                style={styles.searchInput}
+              />
+
               <label style={{ fontSize: '0.85rem', color: '#64748b' }}>Ordenar por:</label>
               <select
                 value={orden}
@@ -209,9 +227,13 @@ export default function Dashboard() {
             <div style={styles.loadingContainer}>
               <p>Cargando solicitudes...</p>
             </div>
-          ) : tickets.length === 0 ? (
+          ) : ticketsOrdenados.length === 0 ? (
             <div style={styles.tablePlaceholder}>
-              <p>No se encontraron tickets registrados en el sistema.</p>
+              <p>
+                {busquedaTexto.trim() !== ''
+                  ? `No se encontraron tickets que coincidan con "${busquedaTexto}".`
+                  : 'No se encontraron tickets registrados en el sistema.'}
+              </p>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -462,6 +484,14 @@ const styles = {
     borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: '600'
+  },
+  searchInput: {
+    padding: '0.4rem 0.8rem',
+    borderRadius: '6px',
+    border: '1px solid #cbd5e1',
+    fontSize: '0.85rem',
+    width: '240px',
+    boxSizing: 'border-box'
   },
   selectSort: {
     padding: '0.4rem 0.8rem',

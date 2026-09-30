@@ -117,3 +117,23 @@ export const actualizarEstadoService = async (ticketId, estado, token) => {
 
   return data;
 };
+
+// HU08: Confirmar o Reabrir solución (Solo Solicitante)
+export const responderResolucionService = async (ticketId, accion, motivo, token) => {
+  const response = await fetch(`${API_URL}/${ticketId}/conformidad`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ accion, motivo })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.mensaje || 'Error al procesar la conformidad.');
+  }
+
+  return data;
+};

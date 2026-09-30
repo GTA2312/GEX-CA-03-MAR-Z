@@ -74,12 +74,13 @@ const ticketSchema = new mongoose.Schema(
         }
       }
     ],
-    // Trazabilidad de cambio de estado (HU07)
+    // Trazabilidad de cambio de estado y conformidad/reapertura (HU07 y HU08)
     historialEstado: [
       {
         estadoAnterior: { type: String, required: true },
         estadoNuevo: { type: String, required: true },
         modificadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        motivo: { type: String, default: '' }, // HU08: Motivo de reapertura o confirmación
         fecha: { type: Date, default: Date.now }
       }
     ]

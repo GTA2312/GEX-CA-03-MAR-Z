@@ -1,18 +1,31 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { agregarComentarioService, actualizarEstadoService } from '../../services/ticketService';
+import {
+  agregarComentarioService,
+  actualizarEstadoService,
+  responderResolucionService
+} from '../../services/ticketService';
 
 export default function TicketDetailModal({ ticket, onClose, onCommentAdded, onStatusChanged }) {
   const { user, token } = useAuth();
   const [nuevoComentario, setNuevoComentario] = useState('');
+  const [motivoReapertura, setMotivoReapertura] = useState('');
+  const [mostrarCampoReabrir, setMostrarCampoReabrir] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [procesando, setProcesando] = useState(false);
   const [errorComentario, setErrorComentario] = useState('');
   const [errorEstado, setErrorEstado] = useState('');
 
   if (!ticket) return null;
 
-  // Matriz de transiciones permitidas segun el flujo (HU07)
+  // HU08: Validar si el usuario es el solicitante creador y la solicitud está en estado Resuelto
+  const solicitanteId = ticket.solicitante?._id || ticket.solicitante;
+  const esPropietario = solicitanteId === user?.id;
+  const esResuelto = ticket.estado === 'Resuelto';
+  const esSolicitante = user?.rol === 'Solicitante';
+  const puedeResponderResolucion = esSolicitante && esPropietario && esResuelto;
+
+  // Matriz de transiciones permitidas según el flujo (HU07)
   const transicionesPermitidas = {
     'Nuevo': ['En Proceso'],
     'En Proceso': ['Resuelto'],
@@ -47,14 +60,49 @@ export default function TicketDetailModal({ ticket, onClose, onCommentAdded, onS
   const handleCambiarEstado = async (nuevoEstado) => {
     if (!nuevoEstado) return;
     try {
-      setCambiandoEstado(true);
+      setProcesando(true);
       setErrorEstado('');
       await actualizarEstadoService(ticket._id, nuevoEstado, token);
       if (onStatusChanged) onStatusChanged();
     } catch (err) {
       setErrorEstado(err.message);
     } finally {
-      setCambiandoEstado(false);
+      setProcesando(false);
+    }
+  };
+
+  // HU08: Confirmar Solución (Solicitante)
+  const handleConfirmarSolucion = async () => {
+    try {
+      setProcesando(true);
+      setErrorEstado('');
+      await responderResolucionService(ticket._id, 'confirmar', '', token);
+      if (onStatusChanged) onStatusChanged();
+    } catch (err) {
+      setErrorEstado(err.message);
+    } finally {
+      setProcesando(false);
+    }
+  };
+
+  // HU08: Reabrir Solicitud con Motivo Obligatorio (Solicitante)
+  const handleReabrirSolicitud = async (e) => {
+    e.preventDefault();
+    if (!motivoReapertura.trim()) {
+      setErrorEstado('Debe ingresar un motivo obligatorio para reabrir la solicitud.');
+      return;
+    }
+    try {
+      setProcesando(true);
+      setErrorEstado('');
+      await responderResolucionService(ticket._id, 'reabrir', motivoReapertura, token);
+      setMotivoReapertura('');
+      setMostrarCampoReabrir(false);
+      if (onStatusChanged) onStatusChanged();
+    } catch (err) {
+      setErrorEstado(err.message);
+    } finally {
+      setProcesando(false);
     }
   };
 
@@ -80,14 +128,14 @@ export default function TicketDetailModal({ ticket, onClose, onCommentAdded, onS
           <strong>Prioridad:</strong> <span style={priorityBadgeStyle(ticket.prioridad)}>{ticket.prioridad}</span>
         </div>
 
-        {/* HU07: Cambio de Estado con Transiciones Permitidas */}
+        {/* HU07: Cambio de Estado por Agente/Coordinador */}
         <div style={detailGroup}>
           <strong>Estado:</strong>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <span style={statusBadgeStyle(ticket.estado)}>{ticket.estado}</span>
             {puedeCambiarEstado && (
               <select
-                disabled={cambiandoEstado}
+                disabled={procesando}
                 onChange={(e) => handleCambiarEstado(e.target.value)}
                 defaultValue=""
                 style={selectStatusStyle}
@@ -103,6 +151,46 @@ export default function TicketDetailModal({ ticket, onClose, onCommentAdded, onS
           </div>
         </div>
         {errorEstado && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'right', margin: '2px 0 8px' }}>{errorEstado}</p>}
+
+        {/* HU08: Panel de Respuesta a la Solución (Solo para el Solicitante cuando la solicitud está Resuelta) */}
+        {puedeResponderResolucion && (
+          <div style={confirmBoxStyle}>
+            <strong style={{ display: 'block', color: '#166534', marginBottom: '6px' }}>
+              El agente ha marcado esta solicitud como "Resuelta". ¿Deseas confirmar la solución o reabrirla?
+            </strong>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                disabled={procesando}
+                onClick={handleConfirmarSolucion}
+                style={confirmBtnStyle}
+              >
+                {procesando ? 'Procesando...' : '✓ Confirmar Solución'}
+              </button>
+              <button
+                disabled={procesando}
+                onClick={() => setMostrarCampoReabrir(!mostrarCampoReabrir)}
+                style={reopenBtnStyle}
+              >
+                ↩ Reabrir Solicitud
+              </button>
+            </div>
+
+            {mostrarCampoReabrir && (
+              <form onSubmit={handleReabrirSolicitud} style={{ marginTop: '10px' }}>
+                <textarea
+                  placeholder="Describe el motivo obligatorio por el cual reabres la solicitud..."
+                  value={motivoReapertura}
+                  onChange={(e) => setMotivoReapertura(e.target.value)}
+                  style={textareaStyle}
+                  rows={2}
+                />
+                <button type="submit" disabled={procesando} style={submitReopenBtnStyle}>
+                  Confirmar Reapertura
+                </button>
+              </form>
+            )}
+          </div>
+        )}
 
         <div style={detailGroup}>
           <strong>Solicitante:</strong> <span>{ticket.solicitante?.nombre} ({ticket.solicitante?.email})</span>
@@ -167,15 +255,20 @@ export default function TicketDetailModal({ ticket, onClose, onCommentAdded, onS
           )}
         </div>
 
-        {/* HU07: Trazabilidad del Historial de Estados */}
+        {/* HU07/HU08: Trazabilidad del Historial de Estados y Motivos */}
         {ticket.historialEstado && ticket.historialEstado.length > 0 && (
           <div style={{ marginTop: '20px' }}>
             <strong>Historial de Cambios de Estado:</strong>
             <ul style={historyListStyle}>
               {ticket.historialEstado.map((hist, index) => (
-                <li key={index} style={{ marginBottom: '4px' }}>
+                <li key={index} style={{ marginBottom: '6px' }}>
                   Cambió de <strong>{hist.estadoAnterior}</strong> a <strong>{hist.estadoNuevo}</strong> por{' '}
                   {hist.modificadoPor?.nombre || 'Usuario'} ({new Date(hist.fecha).toLocaleString()})
+                  {hist.motivo && (
+                    <span style={{ display: 'block', fontStyle: 'italic', color: '#475569', fontSize: '0.8rem', marginTop: '2px' }}>
+                      💬 {hist.motivo}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -280,6 +373,22 @@ const historyListStyle = {
 const cancelBtnStyle = {
   padding: '8px 16px', backgroundColor: '#64748b', color: '#fff',
   border: 'none', borderRadius: '4px', cursor: 'pointer'
+};
+
+const confirmBoxStyle = {
+  backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px', borderRadius: '6px', margin: '12px 0'
+};
+
+const confirmBtnStyle = {
+  backgroundColor: '#16a34a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'
+};
+
+const reopenBtnStyle = {
+  backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'
+};
+
+const submitReopenBtnStyle = {
+  marginTop: '6px', backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold'
 };
 
 const statusBadgeStyle = (estado) => ({

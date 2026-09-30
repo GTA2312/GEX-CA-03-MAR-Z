@@ -36,7 +36,7 @@ const crearTicket = async (req, res) => {
   }
 };
 
-// Obtener solicitudes (Soporte para HU03 / HU04 / HU05 / HU06 / HU07)
+// Obtener solicitudes (Soporte para HU03 / HU04 / HU05 / HU06 / HU07 / HU08)
 const obtenerTickets = async (req, res) => {
   try {
     let filtro = {};
@@ -53,7 +53,7 @@ const obtenerTickets = async (req, res) => {
       .populate('historialAsignacion.asignadoPor', 'nombre email') // Trazabilidad HU05
       .populate('historialAsignacion.agenteNuevo', 'nombre email')
       .populate('comentarios.autor', 'nombre email rol') // HU06: Autor del comentario
-      .populate('historialEstado.modificadoPor', 'nombre email') // HU07: Trazabilidad del cambio de estado
+      .populate('historialEstado.modificadoPor', 'nombre email') // HU07/HU08: Trazabilidad del cambio de estado y reapertura
       .sort({ createdAt: -1 });
 
     res.json(tickets);
@@ -154,6 +154,7 @@ const asignarTicket = async (req, res) => {
         estadoAnterior: 'Nuevo',
         estadoNuevo: 'En Proceso',
         modificadoPor: req.user.id,
+        motivo: 'Cambio automático al asignar agente',
         fecha: new Date()
       });
       ticket.estado = 'En Proceso';
@@ -277,11 +278,74 @@ const actualizarEstado = async (req, res) => {
   }
 };
 
+// HU08: Confirmar o Reabrir solución (Solo para el Solicitante autor de la solicitud)
+const responderResolucion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { accion, motivo } = req.body; // accion: 'confirmar' | 'reabrir'
+
+    if (!['confirmar', 'reabrir'].includes(accion)) {
+      return res.status(400).json({ mensaje: 'Acción inválida. Debe ser "confirmar" o "reabrir".' });
+    }
+
+    const ticket = await Ticket.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ mensaje: 'Solicitud no encontrada.' });
+    }
+
+    // Verificar que el usuario sea el solicitante dueño del ticket
+    if (ticket.solicitante.toString() !== req.user.id) {
+      return res.status(403).json({ mensaje: 'Solo el solicitante creador del ticket puede confirmar o reabrir la solución.' });
+    }
+
+    // Debe estar en estado Resuelto para poder responder
+    if (ticket.estado !== 'Resuelto') {
+      return res.status(400).json({ mensaje: 'Solo se pueden responder solicitudes en estado "Resuelto".' });
+    }
+
+    let nuevoEstado = '';
+    let registroMotivo = '';
+
+    if (accion === 'confirmar') {
+      nuevoEstado = 'Cerrado';
+      registroMotivo = 'Solución aceptada y confirmada por el solicitante.';
+    } else if (accion === 'reabrir') {
+      if (!motivo || motivo.trim() === '') {
+        return res.status(400).json({ mensaje: 'Es obligatorio proporcionar un motivo para reabrir la solicitud.' });
+      }
+      nuevoEstado = 'En Proceso';
+      registroMotivo = `Reabierto por el solicitante. Motivo: ${motivo.trim()}`;
+    }
+
+    ticket.historialEstado.push({
+      estadoAnterior: 'Resuelto',
+      estadoNuevo: nuevoEstado,
+      modificadoPor: req.user.id,
+      motivo: registroMotivo,
+      fecha: new Date()
+    });
+
+    ticket.estado = nuevoEstado;
+    await ticket.save();
+
+    res.json({
+      mensaje: accion === 'confirmar' ? 'Solución confirmada exitosamente.' : 'Solicitud reabierta exitosamente.',
+      ticket
+    });
+  } catch (error) {
+    res.status(500).json({
+      mensaje: 'Error al procesar la respuesta a la solución',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   crearTicket,
   obtenerTickets,
   actualizarPrioridad,
   asignarTicket,
   agregarComentario,
-  actualizarEstado
+  actualizarEstado,
+  responderResolucion
 };
