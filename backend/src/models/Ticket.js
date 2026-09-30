@@ -37,18 +37,22 @@ const ticketSchema = new mongoose.Schema(
       ref: 'User',
       default: null
     },
+    // Trazabilidad de prioridad (HU04)
     historialPrioridad: [
       {
         prioridadAnterior: String,
         prioridadNueva: String,
-        modificadoPor: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User'
-        },
-        fecha: {
-          type: Date,
-          default: Date.now
-        }
+        modificadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        fecha: { type: Date, default: Date.now }
+      }
+    ],
+    // Trazabilidad de asignación (HU05)
+    historialAsignacion: [
+      {
+        agenteAnterior: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        agenteNuevo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        asignadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        fecha: { type: Date, default: Date.now }
       }
     ]
   },

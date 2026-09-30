@@ -57,3 +57,23 @@ export const actualizarPrioridadService = async (ticketId, prioridad, token) => 
 
   return data;
 };
+
+// HU05: Asignar una solicitud a un agente activo (Solo Coordinador)
+export const asignarTicketService = async (ticketId, agenteId, token) => {
+  const response = await fetch(`${API_URL}/${ticketId}/asignar`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ agenteId })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.mensaje || 'Error al asignar la solicitud.');
+  }
+
+  return data;
+};

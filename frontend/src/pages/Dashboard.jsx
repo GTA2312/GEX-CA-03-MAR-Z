@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { obtenerTicketsService, actualizarPrioridadService } from '../services/ticketService';
+import {
+  obtenerTicketsService,
+  actualizarPrioridadService,
+  asignarTicketService
+} from '../services/ticketService';
+import {
+  obtenerAgentesActivosService,
+  obtenerNotificacionesService
+} from '../services/userService';
 import CreateTicketModal from '../components/tickets/CreateTicketModal';
 import TicketDetailModal from '../components/tickets/TicketDetailModal';
 
@@ -10,6 +18,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   const [tickets, setTickets] = useState([]);
+  const [agentes, setAgentes] = useState([]);
+  const [notificaciones, setNotificaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [orden, setOrden] = useState('fecha');
@@ -31,11 +41,22 @@ export default function Dashboard() {
     }
   }, [token]);
 
+  // HU05: Cargar agentes activos y notificaciones
   useEffect(() => {
     if (token) {
       cargarTickets();
+
+      if (user?.rol === 'Coordinador') {
+        obtenerAgentesActivosService(token)
+          .then(setAgentes)
+          .catch((err) => console.error('Error cargando agentes:', err));
+      }
+
+      obtenerNotificacionesService(token)
+        .then(setNotificaciones)
+        .catch((err) => console.error('Error cargando notificaciones:', err));
     }
-  }, [token, cargarTickets]);
+  }, [token, user, cargarTickets]);
 
   const handleLogout = () => {
     logout();
@@ -50,6 +71,17 @@ export default function Dashboard() {
   const handleCambiarPrioridad = async (ticketId, nuevaPrioridad) => {
     try {
       await actualizarPrioridadService(ticketId, nuevaPrioridad, token);
+      cargarTickets();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // HU05: Asignar agente (Solo Coordinador)
+  const handleAsignarAgente = async (ticketId, agenteId) => {
+    if (!agenteId) return;
+    try {
+      await asignarTicketService(ticketId, agenteId, token);
       cargarTickets();
     } catch (err) {
       alert(err.message);
@@ -101,6 +133,20 @@ export default function Dashboard() {
 
       {/* Métricas dinámicas */}
       <main style={styles.content}>
+        {/* Banner de Notificaciones HU05 (si existen) */}
+        {notificaciones.length > 0 && (
+          <div style={styles.notificationBanner}>
+            <strong style={{ display: 'block', marginBottom: '0.25rem' }}>🔔 Notificaciones Recientes:</strong>
+            <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+              {notificaciones.slice(-3).reverse().map((n, idx) => (
+                <li key={idx}>
+                  {n.mensaje} <small style={{ color: '#64748b' }}>({new Date(n.fecha).toLocaleString()})</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div style={styles.grid}>
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Pendientes</h3>
@@ -122,7 +168,6 @@ export default function Dashboard() {
             <h2>Gestión de Solicitudes</h2>
 
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              {/* Desplegable de ordenamiento HU04 */}
               <label style={{ fontSize: '0.85rem', color: '#64748b' }}>Ordenar por:</label>
               <select
                 value={orden}
@@ -163,6 +208,7 @@ export default function Dashboard() {
                     <th style={styles.th}>Título</th>
                     <th style={styles.th}>Categoría</th>
                     <th style={styles.th}>Prioridad</th>
+                    <th style={styles.th}>Agente Asignado</th>
                     <th style={styles.th}>Estado</th>
                     <th style={styles.th}>Última Actualización</th>
                     <th style={styles.th}>Acciones</th>
@@ -176,7 +222,6 @@ export default function Dashboard() {
                       </td>
                       <td style={styles.td}>{ticket.categoria}</td>
                       <td style={styles.td}>
-                        {/* Selector editable solo para Coordinador (HU04) */}
                         {user?.rol === 'Coordinador' ? (
                           <select
                             value={ticket.prioridad}
@@ -192,6 +237,27 @@ export default function Dashboard() {
                           <span style={priorityBadgeStyle(ticket.prioridad)}>
                             {ticket.prioridad}
                           </span>
+                        )}
+                      </td>
+                      {/* Columna Agente Asignado HU05 */}
+                      <td style={styles.td}>
+                        {user?.rol === 'Coordinador' ? (
+                          <select
+                            value={ticket.agenteAsignado?._id || ''}
+                            onChange={(e) => handleAsignarAgente(ticket._id, e.target.value)}
+                            style={styles.selectPriority}
+                          >
+                            <option value="">-- Sin Asignar --</option>
+                            {agentes.map((agente) => (
+                              <option key={agente._id} value={agente._id}>
+                                {agente.nombre}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          ticket.agenteAsignado?.nombre || (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin asignar</span>
+                          )
                         )}
                       </td>
                       <td style={styles.td}>
@@ -219,14 +285,12 @@ export default function Dashboard() {
         </section>
       </main>
 
-      {/* Modal para HU02: Crear Solicitud */}
       <CreateTicketModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onTicketCreated={handleTicketCreated}
       />
 
-      {/* Modal para HU03 / HU04: Ver Detalle y Trazabilidad */}
       <TicketDetailModal
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
@@ -324,6 +388,15 @@ const styles = {
     maxWidth: '1100px',
     margin: '2rem auto',
     padding: '0 1rem'
+  },
+  notificationBanner: {
+    backgroundColor: '#eff6ff',
+    borderLeft: '4px solid #2563eb',
+    padding: '0.75rem 1rem',
+    borderRadius: '6px',
+    marginBottom: '1.5rem',
+    color: '#1e3a8a',
+    fontSize: '0.875rem'
   },
   grid: {
     display: 'grid',

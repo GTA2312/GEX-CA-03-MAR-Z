@@ -9,7 +9,8 @@ app.use(express.json());
 
 // Rutas de la API
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/tickets', require('./routes/tickets')); // Asegúrate de que el archivo en backend/src/routes/ se llame tickets.js o ajusta el nombre
+app.use('/api/tickets', require('./routes/tickets'));
+app.use('/api/users', require('./routes/users')); // HU05: Rutas para agentes y notificaciones
 
 // Ruta de prueba
 app.get('/', (req, res) => {

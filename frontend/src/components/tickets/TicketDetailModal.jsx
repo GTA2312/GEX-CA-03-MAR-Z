@@ -28,6 +28,11 @@ export default function TicketDetailModal({ ticket, onClose }) {
         <div style={detailGroup}>
           <strong>Solicitante:</strong> <span>{ticket.solicitante?.nombre} ({ticket.solicitante?.email})</span>
         </div>
+        {/* HU05: Visualización de Agente Asignado */}
+        <div style={detailGroup}>
+          <strong>Agente Asignado:</strong>{' '}
+          <span>{ticket.agenteAsignado?.nombre || <em style={{ color: '#94a3b8' }}>Sin asignar</em>}</span>
+        </div>
         <div style={detailGroup}>
           <strong>Fecha de Creación:</strong> <span>{new Date(ticket.createdAt).toLocaleString()}</span>
         </div>
@@ -40,7 +45,7 @@ export default function TicketDetailModal({ ticket, onClose }) {
           <p style={descriptionStyle}>{ticket.descripcion}</p>
         </div>
 
-        {/* Sección de Trazabilidad HU04 */}
+        {/* Sección de Trazabilidad Prioridad HU04 */}
         {ticket.historialPrioridad && ticket.historialPrioridad.length > 0 && (
           <div style={{ marginTop: '15px' }}>
             <strong>Historial de Cambios de Prioridad:</strong>
@@ -49,6 +54,21 @@ export default function TicketDetailModal({ ticket, onClose }) {
                 <li key={index} style={{ marginBottom: '4px' }}>
                   Cambió de <strong>{cambio.prioridadAnterior}</strong> a <strong>{cambio.prioridadNueva}</strong> por{' '}
                   {cambio.modificadoPor?.nombre || 'Coordinador'} ({new Date(cambio.fecha).toLocaleString()})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* HU05: Sección de Trazabilidad de Asignación */}
+        {ticket.historialAsignacion && ticket.historialAsignacion.length > 0 && (
+          <div style={{ marginTop: '15px' }}>
+            <strong>Historial de Asignaciones:</strong>
+            <ul style={historyListStyle}>
+              {ticket.historialAsignacion.map((registro, index) => (
+                <li key={index} style={{ marginBottom: '4px' }}>
+                  Asignado a <strong>{registro.agenteNuevo?.nombre || 'Agente'}</strong> por{' '}
+                  {registro.asignadoPor?.nombre || 'Coordinador'} ({new Date(registro.fecha).toLocaleString()})
                 </li>
               ))}
             </ul>
@@ -72,8 +92,8 @@ const overlayStyle = {
 };
 
 const modalStyle = {
-  background: '#fff', padding: '25px', borderRadius: '8px', 
-  width: '100%', maxWidth: '550px', color: '#333'
+  background: '#fff', padding: '25px', borderRadius: '8px',
+  width: '100%', maxWidth: '550px', color: '#333', maxHeight: '90vh', overflowY: 'auto'
 };
 
 const closeBtnStyle = {
