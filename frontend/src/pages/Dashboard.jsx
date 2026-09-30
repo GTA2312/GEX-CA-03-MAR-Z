@@ -34,8 +34,10 @@ export default function Dashboard() {
       setError('');
       const data = await obtenerTicketsService(token);
       setTickets(data);
+      return data;
     } catch (err) {
       setError(err.message);
+      return null;
     } finally {
       setCargando(false);
     }
@@ -65,6 +67,17 @@ export default function Dashboard() {
 
   const handleTicketCreated = () => {
     cargarTickets();
+  };
+
+  // HU06: Recargar lista y actualizar ticket seleccionado cuando se agrega un comentario
+  const handleCommentAdded = async () => {
+    const updatedTickets = await cargarTickets();
+    if (updatedTickets && selectedTicket) {
+      const refreshed = updatedTickets.find((t) => t._id === selectedTicket._id);
+      if (refreshed) {
+        setSelectedTicket(refreshed);
+      }
+    }
   };
 
   // HU04: Cambiar prioridad (Solo Coordinador)
@@ -294,6 +307,7 @@ export default function Dashboard() {
       <TicketDetailModal
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
+        onCommentAdded={handleCommentAdded}
       />
     </div>
   );
@@ -337,7 +351,7 @@ const styles = {
     color: '#ffffff',
     padding: '1.25rem 2rem',
     display: 'flex',
-    justifyContent: 'space-between',
+    justify: 'space-between',
     alignItems: 'center'
   },
   title: {
@@ -429,7 +443,7 @@ const styles = {
   },
   sectionHeader: {
     display: 'flex',
-    justifyContent: 'space-between',
+    justify: 'space-between',
     alignItems: 'center',
     marginBottom: '1rem'
   },

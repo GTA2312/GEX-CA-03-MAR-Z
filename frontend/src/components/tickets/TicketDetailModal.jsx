@@ -1,5 +1,36 @@
-export default function TicketDetailModal({ ticket, onClose }) {
+import { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { agregarComentarioService } from '../../services/ticketService';
+
+export default function TicketDetailModal({ ticket, onClose, onCommentAdded }) {
+  const { user, token } = useAuth();
+  const [nuevoComentario, setNuevoComentario] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [errorComentario, setErrorComentario] = useState('');
+
   if (!ticket) return null;
+
+  const handleGuardarComentario = async (e) => {
+    e.preventDefault();
+    if (!nuevoComentario.trim()) {
+      setErrorComentario('El comentario no puede estar vacío.');
+      return;
+    }
+
+    try {
+      setGuardando(true);
+      setErrorComentario('');
+      await agregarComentarioService(ticket._id, nuevoComentario, token);
+      setNuevoComentario('');
+      if (onCommentAdded) onCommentAdded();
+    } catch (err) {
+      setErrorComentario(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const puedeComentar = user?.rol === 'Agente' || user?.rol === 'Coordinador';
 
   return (
     <div style={overlayStyle}>
@@ -28,7 +59,6 @@ export default function TicketDetailModal({ ticket, onClose }) {
         <div style={detailGroup}>
           <strong>Solicitante:</strong> <span>{ticket.solicitante?.nombre} ({ticket.solicitante?.email})</span>
         </div>
-        {/* HU05: Visualización de Agente Asignado */}
         <div style={detailGroup}>
           <strong>Agente Asignado:</strong>{' '}
           <span>{ticket.agenteAsignado?.nombre || <em style={{ color: '#94a3b8' }}>Sin asignar</em>}</span>
@@ -45,9 +75,53 @@ export default function TicketDetailModal({ ticket, onClose }) {
           <p style={descriptionStyle}>{ticket.descripcion}</p>
         </div>
 
+        {/* HU06: Sección de Comentarios de Trabajo */}
+        <div style={{ marginTop: '20px' }}>
+          <strong>Comentarios de Trabajo:</strong>
+
+          {ticket.comentarios && ticket.comentarios.length > 0 ? (
+            <div style={commentsContainerStyle}>
+              {ticket.comentarios.map((c, index) => (
+                <div key={index} style={commentBoxStyle}>
+                  <div style={commentHeaderStyle}>
+                    <strong>{c.autor?.nombre || 'Usuario'} ({c.autor?.rol || 'Rol'})</strong>
+                    <span>{new Date(c.fecha).toLocaleString()}</span>
+                  </div>
+                  <p style={{ margin: '5px 0 0', color: '#334155' }}>{c.texto}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic', margin: '5px 0' }}>
+              No hay comentarios de trabajo registrados.
+            </p>
+          )}
+
+          {/* Formulario para agregar comentarios (Agentes y Coordinadores) */}
+          {puedeComentar && (
+            <form onSubmit={handleGuardarComentario} style={{ marginTop: '12px' }}>
+              <textarea
+                placeholder="Escribe un comentario de avance..."
+                value={nuevoComentario}
+                onChange={(e) => setNuevoComentario(e.target.value)}
+                style={textareaStyle}
+                rows={3}
+              />
+              {errorComentario && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: '4px 0' }}>{errorComentario}</p>}
+              <button
+                type="submit"
+                disabled={guardando}
+                style={addCommentBtnStyle}
+              >
+                {guardando ? 'Guardando...' : 'Agregar Comentario'}
+              </button>
+            </form>
+          )}
+        </div>
+
         {/* Sección de Trazabilidad Prioridad HU04 */}
         {ticket.historialPrioridad && ticket.historialPrioridad.length > 0 && (
-          <div style={{ marginTop: '15px' }}>
+          <div style={{ marginTop: '20px' }}>
             <strong>Historial de Cambios de Prioridad:</strong>
             <ul style={historyListStyle}>
               {ticket.historialPrioridad.map((cambio, index) => (
@@ -60,7 +134,7 @@ export default function TicketDetailModal({ ticket, onClose }) {
           </div>
         )}
 
-        {/* HU05: Sección de Trazabilidad de Asignación */}
+        {/* Sección de Trazabilidad Asignación HU05 */}
         {ticket.historialAsignacion && ticket.historialAsignacion.length > 0 && (
           <div style={{ marginTop: '15px' }}>
             <strong>Historial de Asignaciones:</strong>
@@ -93,7 +167,7 @@ const overlayStyle = {
 
 const modalStyle = {
   background: '#fff', padding: '25px', borderRadius: '8px',
-  width: '100%', maxWidth: '550px', color: '#333', maxHeight: '90vh', overflowY: 'auto'
+  width: '100%', maxWidth: '600px', color: '#333', maxHeight: '90vh', overflowY: 'auto'
 };
 
 const closeBtnStyle = {
@@ -109,14 +183,31 @@ const descriptionStyle = {
   border: '1px solid #e2e8f0', marginTop: '5px'
 };
 
+const commentsContainerStyle = {
+  maxHeight: '180px', overflowY: 'auto', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px'
+};
+
+const commentBoxStyle = {
+  backgroundColor: '#f1f5f9', padding: '8px 12px', borderRadius: '6px', fontSize: '0.85rem'
+};
+
+const commentHeaderStyle = {
+  display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '0.75rem'
+};
+
+const textareaStyle = {
+  width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1',
+  fontSize: '0.85rem', fontFamily: 'inherit', boxSizing: 'border-box'
+};
+
+const addCommentBtnStyle = {
+  marginTop: '6px', backgroundColor: '#2563eb', color: '#fff', border: 'none',
+  padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'
+};
+
 const historyListStyle = {
-  fontSize: '0.85rem',
-  color: '#475569',
-  marginTop: '5px',
-  backgroundColor: '#f8fafc',
-  padding: '10px 10px 10px 25px',
-  borderRadius: '6px',
-  border: '1px solid #e2e8f0'
+  fontSize: '0.85rem', color: '#475569', marginTop: '5px',
+  backgroundColor: '#f8fafc', padding: '10px 10px 10px 25px', borderRadius: '6px', border: '1px solid #e2e8f0'
 };
 
 const cancelBtnStyle = {

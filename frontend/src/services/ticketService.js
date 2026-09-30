@@ -77,3 +77,23 @@ export const asignarTicketService = async (ticketId, agenteId, token) => {
 
   return data;
 };
+
+// HU06: Agregar comentarios de trabajo (Agente y Coordinador)
+export const agregarComentarioService = async (ticketId, texto, token) => {
+  const response = await fetch(`${API_URL}/${ticketId}/comentarios`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ texto })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.mensaje || 'Error al agregar el comentario.');
+  }
+
+  return data;
+};

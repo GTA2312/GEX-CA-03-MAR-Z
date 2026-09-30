@@ -54,6 +54,25 @@ const ticketSchema = new mongoose.Schema(
         asignadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         fecha: { type: Date, default: Date.now }
       }
+    ],
+    // Registro inmutable de comentarios de avance (HU06)
+    comentarios: [
+      {
+        texto: {
+          type: String,
+          required: [true, 'El comentario no puede estar vacío.'],
+          trim: true
+        },
+        autor: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true
+        },
+        fecha: {
+          type: Date,
+          default: Date.now
+        }
+      }
     ]
   },
   {

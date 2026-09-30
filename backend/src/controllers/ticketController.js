@@ -36,7 +36,7 @@ const crearTicket = async (req, res) => {
   }
 };
 
-// Obtener solicitudes (Soporte para HU03 / HU04 / HU05)
+// Obtener solicitudes (Soporte para HU03 / HU04 / HU05 / HU06)
 const obtenerTickets = async (req, res) => {
   try {
     let filtro = {};
@@ -52,6 +52,7 @@ const obtenerTickets = async (req, res) => {
       .populate('historialPrioridad.modificadoPor', 'nombre email') // Trazabilidad HU04
       .populate('historialAsignacion.asignadoPor', 'nombre email') // Trazabilidad HU05
       .populate('historialAsignacion.agenteNuevo', 'nombre email')
+      .populate('comentarios.autor', 'nombre email rol') // HU06: Autor del comentario
       .sort({ createdAt: -1 });
 
     res.json(tickets);
@@ -173,9 +174,50 @@ const asignarTicket = async (req, res) => {
   }
 };
 
+// HU06: Registrar comentarios de trabajo para documentar avances
+const agregarComentario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { texto } = req.body;
+
+    // Criterio HU06: Comentario no vacío
+    if (!texto || texto.trim() === '') {
+      return res.status(400).json({
+        mensaje: 'El comentario no puede estar vacío.'
+      });
+    }
+
+    const ticket = await Ticket.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ mensaje: 'Solicitud no encontrada.' });
+    }
+
+    // Criterio HU06: Autor y fecha inmutables, registrado como arreglo append-only
+    const nuevoComentario = {
+      texto: texto.trim(),
+      autor: req.user.id,
+      fecha: new Date()
+    };
+
+    ticket.comentarios.push(nuevoComentario);
+    await ticket.save();
+
+    res.status(201).json({
+      mensaje: 'Comentario de trabajo registrado con éxito.',
+      ticket
+    });
+  } catch (error) {
+    res.status(500).json({
+      mensaje: 'Error al agregar el comentario',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   crearTicket,
   obtenerTickets,
   actualizarPrioridad,
-  asignarTicket
+  asignarTicket,
+  agregarComentario
 };
