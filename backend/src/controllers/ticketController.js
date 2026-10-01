@@ -384,7 +384,7 @@ const obtenerIndicadores = async (req, res) => {
   }
 };
 
-// HU11: Consultar historial para auditoría (Modo lectura, actor codificado)
+// HU11: Consultar historial para auditoría (Estructurado con accion, detalle y actorCodificado)
 const obtenerHistorialAuditoria = async (req, res) => {
   try {
     const tickets = await Ticket.find()
@@ -405,61 +405,62 @@ const obtenerHistorialAuditoria = async (req, res) => {
     const eventosAuditoria = [];
 
     tickets.forEach((ticket) => {
+      // 1. Evento de Creación
       eventosAuditoria.push({
         ticketId: ticket._id,
-        tituloTicket: ticket.titulo,
+        ticketTitulo: ticket.titulo,
         fecha: ticket.createdAt,
         actorCodificado: codificarActor(ticket.solicitante),
-        campo: 'Creación de Solicitud',
-        valorAnterior: 'N/A',
-        valorNuevo: `Estado: Nuevo | Prioridad: ${ticket.prioridad}`
+        accion: 'Creación',
+        detalle: `Solicitud creada en categoría "${ticket.categoria}" con prioridad inicial ${ticket.prioridad}`
       });
 
+      // 2. Historial de Prioridad
       ticket.historialPrioridad.forEach((hp) => {
         eventosAuditoria.push({
           ticketId: ticket._id,
-          tituloTicket: ticket.titulo,
+          ticketTitulo: ticket.titulo,
           fecha: hp.fecha,
           actorCodificado: codificarActor(hp.modificadoPor),
-          campo: 'Prioridad',
-          valorAnterior: hp.prioridadAnterior,
-          valorNuevo: hp.prioridadNueva
+          accion: 'Cambio de Prioridad',
+          detalle: `Prioridad cambiada de "${hp.prioridadAnterior}" a "${hp.prioridadNueva}"`
         });
       });
 
+      // 3. Historial de Asignación
       ticket.historialAsignacion.forEach((ha) => {
         eventosAuditoria.push({
           ticketId: ticket._id,
-          tituloTicket: ticket.titulo,
+          ticketTitulo: ticket.titulo,
           fecha: ha.fecha,
           actorCodificado: codificarActor(ha.asignadoPor),
-          campo: 'Agente Asignado',
-          valorAnterior: codificarActor(ha.agenteAnterior),
-          valorNuevo: codificarActor(ha.agenteNuevo)
+          accion: 'Asignación',
+          detalle: `Asignación de agente actualizada a ${codificarActor(ha.agenteNuevo)}`
         });
       });
 
+      // 4. Historial de Estado
       ticket.historialEstado.forEach((he) => {
+        const esReapertura = he.motivo && he.motivo.toLowerCase().includes('reabier');
         eventosAuditoria.push({
           ticketId: ticket._id,
-          tituloTicket: ticket.titulo,
+          ticketTitulo: ticket.titulo,
           fecha: he.fecha,
           actorCodificado: codificarActor(he.modificadoPor),
-          campo: 'Estado',
-          valorAnterior: he.estadoAnterior,
-          valorNuevo: `${he.estadoNuevo}${he.motivo ? ' (Motivo: ' + he.motivo + ')' : ''}`
+          accion: esReapertura ? 'Reapertura' : 'Cambio de Estado',
+          detalle: `Estado modificado de "${he.estadoAnterior}" a "${he.estadoNuevo}"${he.motivo ? ' (Motivo: ' + he.motivo + ')' : ''}`
         });
       });
 
+      // 5. Comentarios de Trabajo
       ticket.comentarios.forEach((c) => {
         eventosAuditoria.push({
           ticketId: ticket._id,
-          tituloTicket: ticket.titulo,
+          ticketTitulo: ticket.titulo,
           fecha: c.fecha,
           actorCodificado: codificarActor(c.autor),
-          campo: 'Comentario de Trabajo',
-          valorAnterior: 'N/A',
-          valorNuevo: c.texto
+          accion: 'Comentario',
+          detalle: `Comentario registrado: "${c.texto}"`
         });
       });
     });
