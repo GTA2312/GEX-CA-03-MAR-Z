@@ -176,9 +176,16 @@ export const obtenerHistorialAuditoriaService = async (token) => {
   return data;
 };
 
-// HU12: Exportar Reporte en Formato CSV (Solo Coordinador)
-export const exportarReporteCSVService = async (token) => {
-  const response = await fetch(`${API_URL}/exportar-csv`, {
+// HU12: Servicio para solicitar y descargar el reporte CSV
+export const exportarReporteCSVService = async (filtros, token) => {
+  const queryParams = new URLSearchParams();
+  
+  if (filtros.estado && filtros.estado !== 'Todos') queryParams.append('estado', filtros.estado);
+  if (filtros.prioridad && filtros.prioridad !== 'Todas') queryParams.append('prioridad', filtros.prioridad);
+  if (filtros.categoria && filtros.categoria !== 'Todas') queryParams.append('categoria', filtros.categoria);
+
+  // Se apunta directamente a API_URL
+  const response = await fetch(`${API_URL}/exportar-csv?${queryParams.toString()}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`
@@ -187,8 +194,17 @@ export const exportarReporteCSVService = async (token) => {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.mensaje || 'Error al exportar el reporte CSV.');
+    throw new Error(errorData.mensaje || 'Error al generar la exportación en CSV.');
   }
 
-  return await response.blob();
+  // Descarga del archivo generado
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `reporte_solicitudes_marz_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 };

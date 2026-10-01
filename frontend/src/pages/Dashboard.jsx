@@ -12,6 +12,7 @@ import {
 } from '../services/userService';
 import CreateTicketModal from '../components/tickets/CreateTicketModal';
 import TicketDetailModal from '../components/tickets/TicketDetailModal';
+import ExportarCSVModal from '../components/tickets/ExportarCSVModal';
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
@@ -30,10 +31,12 @@ export default function Dashboard() {
   const [filtroPrioridad, setFiltroPrioridad] = useState('Todas');
   const [filtroCategoria, setFiltroCategoria] = useState('Todas');
 
+  // Modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
 
-  // Cargar tickets desde la API (el backend filtra automáticamente por rol para Solicitantes)
+  // Cargar tickets desde la API
   const cargarTickets = useCallback(async () => {
     try {
       setCargando(true);
@@ -111,23 +114,17 @@ export default function Dashboard() {
     setFiltroCategoria('Todas');
   };
 
-  // HU09: Filtrado Combinado Dinámico (Texto, Estado, Prioridad, Categoría)
+  // HU09: Filtrado Combinado Dinámico
   const ticketsFiltrados = tickets.filter((t) => {
     const termino = busquedaTexto.toLowerCase().trim();
 
-    // 1. Filtro por texto en título o descripción
     const coincideTexto =
       termino === '' ||
       (t.titulo && t.titulo.toLowerCase().includes(termino)) ||
       (t.descripcion && t.descripcion.toLowerCase().includes(termino));
 
-    // 2. Filtro por estado
     const coincideEstado = filtroEstado === 'Todos' || t.estado === filtroEstado;
-
-    // 3. Filtro por prioridad
     const coincidePrioridad = filtroPrioridad === 'Todas' || t.prioridad === filtroPrioridad;
-
-    // 4. Filtro por categoría
     const coincideCategoria = filtroCategoria === 'Todas' || t.categoria === filtroCategoria;
 
     return coincideTexto && coincideEstado && coincidePrioridad && coincideCategoria;
@@ -212,20 +209,32 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Sección de Gestión de Solicitudes y Panel de Filtros Combinados (HU09) */}
+        {/* Sección de Gestión de Solicitudes y Panel de Filtros Combinados (HU09 + HU12) */}
         <section style={styles.section}>
           <div style={{ marginBottom: '1rem' }}>
             <div style={styles.sectionHeader}>
               <h2>Gestión de Solicitudes</h2>
 
-              {(user?.rol === 'Solicitante' || !user?.rol) && (
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  style={styles.actionBtn}
-                >
-                  + Nueva Solicitud
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {/* HU12: Botón exclusivo para Coordinadores */}
+                {user?.rol === 'Coordinador' && (
+                  <button
+                    onClick={() => setIsExportModalOpen(true)}
+                    style={styles.exportBtn}
+                  >
+                    📥 Exportar CSV
+                  </button>
+                )}
+
+                {(user?.rol === 'Solicitante' || !user?.rol) && (
+                  <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    style={styles.actionBtn}
+                  >
+                    + Nueva Solicitud
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Panel de Búsqueda y Filtros Combinados HU09 */}
@@ -385,17 +394,25 @@ export default function Dashboard() {
         </section>
       </main>
 
+      {/* Modal de Creación */}
       <CreateTicketModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onTicketCreated={handleTicketCreated}
       />
 
+      {/* Modal de Detalle */}
       <TicketDetailModal
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
         onCommentAdded={handleTicketUpdated}
         onStatusChanged={handleTicketUpdated}
+      />
+
+      {/* HU12: Modal de Exportación CSV */}
+      <ExportarCSVModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
       />
     </div>
   );
@@ -457,6 +474,7 @@ const styles = {
   selectSort: { padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#ffffff', cursor: 'pointer' },
   clearFiltersBtn: { padding: '0.4rem 0.8rem', backgroundColor: '#64748b', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '500' },
   actionBtn: { backgroundColor: '#16a34a', color: '#ffffff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
+  exportBtn: { backgroundColor: '#0284c7', color: '#ffffff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
   selectPriority: { padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer' },
   loadingContainer: { padding: '2rem', textAlign: 'center', color: '#64748b' },
   tablePlaceholder: { padding: '3rem', textAlign: 'center', color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: '6px' },
