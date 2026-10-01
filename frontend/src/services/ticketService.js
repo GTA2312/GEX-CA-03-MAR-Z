@@ -137,3 +137,58 @@ export const responderResolucionService = async (ticketId, accion, motivo, token
 
   return data;
 };
+
+// HU10: Obtener Indicadores Agregados y Tiempo Mediano de Ciclo (Coordinador y Auditor)
+export const obtenerIndicadoresService = async (token) => {
+  const response = await fetch(`${API_URL}/indicadores`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.mensaje || 'Error al obtener los indicadores agregados.');
+  }
+
+  return data;
+};
+
+// HU11: Obtener Historial de Auditoría con Actor Codificado (Solo Auditor)
+export const obtenerHistorialAuditoriaService = async (token) => {
+  const response = await fetch(`${API_URL}/auditoria`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.mensaje || 'Error al obtener el historial de auditoría.');
+  }
+
+  return data;
+};
+
+// HU12: Exportar Reporte en Formato CSV (Solo Coordinador)
+export const exportarReporteCSVService = async (token) => {
+  const response = await fetch(`${API_URL}/exportar-csv`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.mensaje || 'Error al exportar el reporte CSV.');
+  }
+
+  return await response.blob();
+};

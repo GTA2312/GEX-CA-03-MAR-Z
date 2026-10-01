@@ -6,18 +6,19 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import TicketDetail from './pages/TicketDetail';
 import Auditoria from './pages/Auditoria';
+import Indicadores from './pages/Indicadores';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
         <div className="app-container">
-          {/* Navbar global (se puede agregar más adelante) */}
+          {/* Navbar global */}
           <Routes>
             {/* Ruta Pública */}
             <Route path="/" element={<Login />} />
 
-            {/* Rutas Protegidas (Requieren inicio de sesión) */}
+            {/* Rutas Protegidas Generales */}
             <Route
               path="/dashboard"
               element={
@@ -35,7 +36,17 @@ function App() {
               }
             />
 
-            {/* Ruta Protegida Exclusiva para el rol Auditor */}
+            {/* Ruta Protegida para HU10 (Coordinador y Auditor) */}
+            <Route
+              path="/indicadores"
+              element={
+                <ProtectedRoute roles={['Coordinador', 'Auditor']}>
+                  <Indicadores />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Ruta Protegida Exclusiva para Auditor (HU11) */}
             <Route
               path="/auditoria"
               element={

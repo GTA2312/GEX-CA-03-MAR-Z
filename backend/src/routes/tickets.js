@@ -7,13 +7,28 @@ const {
   asignarTicket,
   agregarComentario,
   actualizarEstado,
-  responderResolucion
+  responderResolucion,
+  obtenerIndicadores,
+  obtenerHistorialAuditoria,
+  exportarReporteCSV
 } = require('../controllers/ticketController');
 const { verifyToken } = require('../middlewares/authJwt');
 const { checkRole } = require('../middlewares/authRole');
 
+// Rutas Generales de Tickets
 router.post('/', verifyToken, crearTicket);
 router.get('/', verifyToken, obtenerTickets);
+
+// HU10: Indicadores Agregados y Tiempo Mediano de Ciclo (Coordinador y Auditor)
+router.get('/indicadores', verifyToken, checkRole(['Coordinador', 'Auditor']), obtenerIndicadores);
+
+// HU11: Historial de Auditoría con Actor Codificado (Solo Auditor)
+router.get('/auditoria', verifyToken, checkRole(['Auditor']), obtenerHistorialAuditoria);
+
+// HU12: Exportación de Reportes en CSV (Solo Coordinador)
+router.get('/exportar-csv', verifyToken, checkRole(['Coordinador']), exportarReporteCSV);
+
+// Acciones específicas sobre tickets
 router.patch('/:id/prioridad', verifyToken, checkRole(['Coordinador']), actualizarPrioridad);
 
 // HU05: Asignar ticket (Solo Coordinador)
