@@ -22,6 +22,16 @@ const ticketSchema = new mongoose.Schema(
       enum: ['Baja', 'Media', 'Alta', 'Crítica'],
       default: 'Media'
     },
+    // Solicitud de cambio Sprint 2: Requeridos cuando la prioridad es Alta o Crítica (HU02 / HU04)
+    justificacion: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    fechaObjetivo: {
+      type: Date,
+      default: null
+    },
     estado: {
       type: String,
       enum: ['Nuevo', 'En Proceso', 'Resuelto', 'Cerrado'],
@@ -37,11 +47,13 @@ const ticketSchema = new mongoose.Schema(
       ref: 'User',
       default: null
     },
-    // Trazabilidad de prioridad (HU04)
+    // Trazabilidad de prioridad (HU04 - Actualizado para Sprint 2)
     historialPrioridad: [
       {
         prioridadAnterior: String,
         prioridadNueva: String,
+        justificacion: { type: String, default: null },
+        fechaObjetivo: { type: Date, default: null },
         modificadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         fecha: { type: Date, default: Date.now }
       }

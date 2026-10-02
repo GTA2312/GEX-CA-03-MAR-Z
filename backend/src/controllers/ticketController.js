@@ -1,10 +1,10 @@
 const Ticket = require('../models/Ticket');
 const User = require('../models/User');
 
-// HU02: Crear una nueva solicitud de soporte
+// HU02: Crear una nueva solicitud de soporte (Sprint 2: Justificación y Fecha Objetivo obligatorias para prioridad Alta/Crítica)
 const crearTicket = async (req, res) => {
   try {
-    const { titulo, descripcion, categoria, prioridad } = req.body;
+    const { titulo, descripcion, categoria, prioridad, justificacion, fechaObjetivo } = req.body;
 
     if (!titulo || !descripcion || !categoria) {
       return res.status(400).json({
@@ -12,11 +12,24 @@ const crearTicket = async (req, res) => {
       });
     }
 
+    const prio = prioridad || 'Media';
+
+    // Validación Sprint 2: Solicitudes de prioridad Alta o Crítica requieren justificación y fecha objetivo
+    if (['Alta', 'Crítica'].includes(prio)) {
+      if (!justificacion || !justificacion.trim() || !fechaObjetivo) {
+        return res.status(400).json({
+          mensaje: 'Las solicitudes con prioridad Alta o Crítica requieren una justificación y una fecha objetivo de resolución.'
+        });
+      }
+    }
+
     const nuevoTicket = new Ticket({
       titulo,
       descripcion,
       categoria,
-      prioridad: prioridad || 'Media',
+      prioridad: prio,
+      justificacion: ['Alta', 'Crítica'].includes(prio) ? justificacion.trim() : null,
+      fechaObjetivo: ['Alta', 'Crítica'].includes(prio) ? fechaObjetivo : null,
       estado: 'Nuevo',
       solicitante: req.user.id
     });
@@ -64,17 +77,25 @@ const obtenerTickets = async (req, res) => {
   }
 };
 
-// HU04: Actualizar la prioridad de una solicitud (Solo Coordinador)
+// HU04: Actualizar la prioridad de una solicitud (Sprint 2: Exige justificación y fecha objetivo si cambia a Alta/Crítica)
 const actualizarPrioridad = async (req, res) => {
   try {
     const { id } = req.params;
-    const { prioridad } = req.body;
+    const { prioridad, justificacion, fechaObjetivo } = req.body;
 
     const prioridadesValidas = ['Baja', 'Media', 'Alta', 'Crítica'];
     if (!prioridadesValidas.includes(prioridad)) {
       return res.status(400).json({
         mensaje: 'Prioridad no válida. Opciones permitidas: Baja, Media, Alta, Crítica.'
       });
+    }
+
+    if (['Alta', 'Crítica'].includes(prioridad)) {
+      if (!justificacion || !justificacion.trim() || !fechaObjetivo) {
+        return res.status(400).json({
+          mensaje: 'Actualizar la prioridad a Alta o Crítica requiere indicar justificación y fecha objetivo.'
+        });
+      }
     }
 
     const ticket = await Ticket.findById(id);
@@ -85,12 +106,18 @@ const actualizarPrioridad = async (req, res) => {
     const cambioTrazable = {
       prioridadAnterior: ticket.prioridad,
       prioridadNueva: prioridad,
+      justificacion: ['Alta', 'Crítica'].includes(prioridad) ? justificacion.trim() : null,
+      fechaObjetivo: ['Alta', 'Crítica'].includes(prioridad) ? fechaObjetivo : null,
       modificadoPor: req.user.id,
       fecha: new Date()
     };
 
     ticket.historialPrioridad.push(cambioTrazable);
     ticket.prioridad = prioridad;
+    if (['Alta', 'Crítica'].includes(prioridad)) {
+      ticket.justificacion = justificacion.trim();
+      ticket.fechaObjetivo = fechaObjetivo;
+    }
 
     await ticket.save();
 
@@ -384,17 +411,17 @@ const obtenerIndicadores = async (req, res) => {
   }
 };
 
-// HU11: Consultar historial para auditoría (Estructurado con accion, detalle y actorCodificado)
+// HU11: Consultar historial para auditoría (Sprint 3: Solo lectura, actor codificado, excluye texto libre)
 const obtenerHistorialAuditoria = async (req, res) => {
   try {
     const tickets = await Ticket.find()
-      .populate('solicitante', '_id nombre')
-      .populate('agenteAsignado', '_id nombre')
-      .populate('historialPrioridad.modificadoPor', '_id nombre')
-      .populate('historialAsignacion.asignadoPor', '_id nombre')
-      .populate('historialAsignacion.agenteNuevo', '_id nombre')
-      .populate('historialEstado.modificadoPor', '_id nombre')
-      .populate('comentarios.autor', '_id nombre');
+      .populate('solicitante', '_id')
+      .populate('agenteAsignado', '_id')
+      .populate('historialPrioridad.modificadoPor', '_id')
+      .populate('historialAsignacion.asignadoPor', '_id')
+      .populate('historialAsignacion.agenteNuevo', '_id')
+      .populate('historialEstado.modificadoPor', '_id')
+      .populate('comentarios.autor', '_id');
 
     const codificarActor = (usuario) => {
       if (!usuario) return 'Sistema_Anonimo';
@@ -405,25 +432,31 @@ const obtenerHistorialAuditoria = async (req, res) => {
     const eventosAuditoria = [];
 
     tickets.forEach((ticket) => {
-      // 1. Evento de Creación
+      // 1. Registro inicial de Creación
       eventosAuditoria.push({
         ticketId: ticket._id,
-        ticketTitulo: ticket.titulo,
+        ticketTitulo: ticket._id,
         fecha: ticket.createdAt,
         actorCodificado: codificarActor(ticket.solicitante),
         accion: 'Creación',
-        detalle: `Solicitud creada en categoría "${ticket.categoria}" con prioridad inicial ${ticket.prioridad}`
+        detalle: `Solicitud creada en categoría "${ticket.categoria}" (Prioridad: ${ticket.prioridad})`,
+        campo: 'Creación',
+        valorAnterior: 'N/A',
+        valorNuevo: `Estado: Nuevo | Prioridad: ${ticket.prioridad}`
       });
 
-      // 2. Historial de Prioridad
+      // 2. Historial de Cambio de Prioridad
       ticket.historialPrioridad.forEach((hp) => {
         eventosAuditoria.push({
           ticketId: ticket._id,
-          ticketTitulo: ticket.titulo,
+          ticketTitulo: ticket._id,
           fecha: hp.fecha,
           actorCodificado: codificarActor(hp.modificadoPor),
           accion: 'Cambio de Prioridad',
-          detalle: `Prioridad cambiada de "${hp.prioridadAnterior}" a "${hp.prioridadNueva}"`
+          detalle: `Prioridad modificada de "${hp.prioridadAnterior}" a "${hp.prioridadNueva}"`,
+          campo: 'Prioridad',
+          valorAnterior: hp.prioridadAnterior,
+          valorNuevo: hp.prioridadNueva
         });
       });
 
@@ -431,36 +464,45 @@ const obtenerHistorialAuditoria = async (req, res) => {
       ticket.historialAsignacion.forEach((ha) => {
         eventosAuditoria.push({
           ticketId: ticket._id,
-          ticketTitulo: ticket.titulo,
+          ticketTitulo: ticket._id,
           fecha: ha.fecha,
           actorCodificado: codificarActor(ha.asignadoPor),
           accion: 'Asignación',
-          detalle: `Asignación de agente actualizada a ${codificarActor(ha.agenteNuevo)}`
+          detalle: `Agente asignado actualizado a ${codificarActor(ha.agenteNuevo)}`,
+          campo: 'Agente Asignado',
+          valorAnterior: codificarActor(ha.agenteAnterior),
+          valorNuevo: codificarActor(ha.agenteNuevo)
         });
       });
 
-      // 4. Historial de Estado
+      // 4. Historial de Cambio de Estado y Reapertura
       ticket.historialEstado.forEach((he) => {
         const esReapertura = he.motivo && he.motivo.toLowerCase().includes('reabier');
         eventosAuditoria.push({
           ticketId: ticket._id,
-          ticketTitulo: ticket.titulo,
+          ticketTitulo: ticket._id,
           fecha: he.fecha,
           actorCodificado: codificarActor(he.modificadoPor),
           accion: esReapertura ? 'Reapertura' : 'Cambio de Estado',
-          detalle: `Estado modificado de "${he.estadoAnterior}" a "${he.estadoNuevo}"${he.motivo ? ' (Motivo: ' + he.motivo + ')' : ''}`
+          detalle: `Estado modificado de "${he.estadoAnterior}" a "${he.estadoNuevo}"`,
+          campo: 'Estado',
+          valorAnterior: he.estadoAnterior,
+          valorNuevo: he.estadoNuevo
         });
       });
 
-      // 5. Comentarios de Trabajo
+      // 5. Comentarios de Trabajo (Excluye texto libre)
       ticket.comentarios.forEach((c) => {
         eventosAuditoria.push({
           ticketId: ticket._id,
-          ticketTitulo: ticket.titulo,
+          ticketTitulo: ticket._id,
           fecha: c.fecha,
           actorCodificado: codificarActor(c.autor),
           accion: 'Comentario',
-          detalle: `Comentario registrado: "${c.texto}"`
+          detalle: 'Comentario de trabajo registrado en la solicitud',
+          campo: 'Comentario de Trabajo',
+          valorAnterior: 'Sin Registro',
+          valorNuevo: 'Comentario Registrado'
         });
       });
     });
@@ -473,7 +515,7 @@ const obtenerHistorialAuditoria = async (req, res) => {
   }
 };
 
-// HU12: Exportar reporte CSV (Filtra, excluye credenciales y texto innecesario, registra exportación)
+// HU12: Exportar reporte CSV (Sprint 3: Filtra, excluye credenciales y texto libre, registra exportación)
 const exportarReporteCSV = async (req, res) => {
   try {
     const { estado, prioridad, categoria } = req.query;
@@ -487,17 +529,17 @@ const exportarReporteCSV = async (req, res) => {
       .populate('agenteAsignado', 'nombre')
       .sort({ createdAt: -1 });
 
-    let csv = 'ID Ticket,Titulo,Categoria,Prioridad,Estado,Agente Asignado,Fecha Creacion,Ultima Actualizacion\n';
+    // Cabecera estructurada excluyendo texto libre (como títulos o descripciones)
+    let csv = 'ID Ticket,Categoria,Prioridad,Estado,Agente Asignado,Fecha Creacion,Ultima Actualizacion\n';
 
     tickets.forEach((t) => {
-      const tituloEscapado = `"${t.titulo.replace(/"/g, '""')}"`;
       const agente = t.agenteAsignado ? t.agenteAsignado.nombre : 'Sin Asignar';
-      csv += `${t._id},${tituloEscapado},${t.categoria},${t.prioridad},${t.estado},"${agente}",${t.createdAt.toISOString()},${t.updatedAt.toISOString()}\n`;
+      csv += `${t._id},${t.categoria},${t.prioridad},${t.estado},"${agente}",${t.createdAt.toISOString()},${t.updatedAt.toISOString()}\n`;
     });
 
     console.log(`[AUDITORIA LOG] Exportación CSV generada por el usuario ID: ${req.user.id} a las ${new Date().toISOString()}`);
 
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="reporte_solicitudes_marz.csv"');
     res.status(200).send(csv);
   } catch (error) {
